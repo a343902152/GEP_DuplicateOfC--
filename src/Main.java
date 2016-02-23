@@ -1,6 +1,11 @@
 import Model.BinaryTreeNode;
+import Model.ComparatorIndIndividual;
 import Model.Individual;
+import jdk.nashorn.internal.runtime.FunctionScope;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
 public class Main {
@@ -9,6 +14,7 @@ public class Main {
      * 一个基因序列中常数的个数
      */
     public static final int constantSCount=10;
+    public static final int _MAX=0x3f3f3f3f;
 
     // 测试数据的row行，col列
     public static int dataRow;
@@ -45,14 +51,16 @@ public class Main {
     public static double[] midResult;
 
 
+    // 训练集(输入的数据)、运算符集、基因序列的取值范围
     public static double[][] trainingset;
-    public static char[] functionset={'+','-','*','/','@','#','$','~'};
+    public static char[] functionset={'+','-','*','/','@','#','$'};
+    public static String fandt;
 
     public static void ReadData(String inFilename,String outFilename){
         // 读取文件中的数据
-        GEPNum=200;
-        groupSize=500;
-        nextGroupSize=100;
+        GEPNum=20;
+        groupSize=50;
+        nextGroupSize=10;
 
         numOfGenes=3;
         headLength=6;
@@ -71,11 +79,11 @@ public class Main {
 
         trainingset=new double[dataRow][dataCol];
         trainingset[0][0]=1;trainingset[0][1]=1;trainingset[0][2]=5;
-        trainingset[0][0]=1;trainingset[0][1]=2;trainingset[0][2]=8;
-        trainingset[0][0]=0.5;trainingset[0][1]=-0.5;trainingset[0][2]=3.5;
-        trainingset[0][0]=0.88 ;trainingset[0][1]=7.31 ;trainingset[0][2]=57.2105;
-        trainingset[0][0]=10;trainingset[0][1]=15;trainingset[0][2]=328;
-        trainingset[0][0]=-7;trainingset[0][1]=-9;trainingset[0][2]=133;
+        trainingset[1][0]=1;trainingset[1][1]=2;trainingset[1][2]=8;
+        trainingset[2][0]=0.5;trainingset[2][1]=-0.5;trainingset[2][2]=3.5;
+        trainingset[3][0]=0.88 ;trainingset[3][1]=7.31 ;trainingset[3][2]=57.2105;
+        trainingset[4][0]=10;trainingset[4][1]=15;trainingset[4][2]=328;
+        trainingset[5][0]=-7;trainingset[5][1]=-9;trainingset[5][2]=133;
 
     }
 
@@ -109,7 +117,7 @@ public class Main {
 
 
         // 设置可选用的基因
-        String fandt="?";
+        fandt="?";
         for(int i=0;i<dataCol-1;i++){
             fandt+=(char)('A'+(i));
         }
@@ -157,11 +165,15 @@ public class Main {
         // 计算初代种群的适应度
         for(int i=0;i<groupSize;i++){
             oldPopulation[0][i].fitness= GetIndividualFitness(oldPopulation[0][i]);
-            System.out.println(oldPopulation[0][i].fitness);
-//            TotalF=oldpop[nCurGepNum][i].fitness+TotalF;
         }
-//        for(i=0;i<=m_nNumOfGenes;i++)
-//            infixlength[i]=0;
+        for(int i=0;i<nextGroupSize;i++){
+            newPopulation[i].geneSerial=oldPopulation[0][i].geneSerial;
+            newPopulation[i].fitness=oldPopulation[0][i].fitness;
+            for(int j=0;j<constantSCount;j++){
+                newPopulation[i].constants[j]=oldPopulation[0][i].constants[j];
+            }
+        }
+        SortPopulation(0);
     }
 
     /**
@@ -171,13 +183,14 @@ public class Main {
      * @return
      */
     public static double GetIndividualFitness(Individual individual) {
-        // fixme 容易出现正负无穷大？？？？？
         double ans=0;
         for(int i=0;i<dataRow;i++){
             int j=0;
             for(j=0;j<numOfGenes;j++){
                 String serial=individual.geneSerial.substring(j*perGeneLength,(j+1)*perGeneLength);
                 midResult[j]=DoGetPartFitness(i,serial,individual);
+//                double t=midResult[j];
+//                System.out.println(t);
             }
             String serial=individual.geneSerial.substring(j*perGeneLength,(j+1)*perGeneLength);
             ans+=100-Math.abs((Math.abs(DoGetPartFitness(i,serial,individual)-trainingset[i][dataCol-1]))
@@ -286,7 +299,7 @@ public class Main {
                                 CalculateFitness(row,node.rChild,individual);
                 case '/':
                     if(CalculateFitness(row,node.rChild,individual)==0){
-                        return 0;
+                        return _MAX;
                     }else{
                         return CalculateFitness(row,node.lChild,individual)/
                                     CalculateFitness(row,node.rChild,individual);
@@ -298,7 +311,7 @@ public class Main {
                     // sqrt
                     double ans = CalculateFitness(row, node.lChild, individual);
                     if (ans <= 0) {
-                        return 0;
+                        return _MAX;
                     } else {
                         return Math.sqrt(ans);
                     }
@@ -312,7 +325,7 @@ public class Main {
                     // ln
                     double ansLog = CalculateFitness(row, node.lChild, individual);
                     if (ansLog <= 0) {
-                        return 0;
+                        return _MAX;
                     } else {
                         return Math.log(ansLog);
                     }
@@ -329,31 +342,198 @@ public class Main {
 
     /**
      * 开始演化
+     * @param generationCount 表示演化到第几代
      */
-    public static void Generation(){
+    public static void Generation(int generationCount) {
+        System.out.println("generation");
+        double totalFitness = 0;
+        for (int i = 0; i < groupSize; i++) {
+            totalFitness += oldPopulation[generationCount][i].fitness;
+        }
+        for (int i = 0; i < nextGroupSize / 2; i++) {
+            // 选定基因交换的起点和终点
+            int exchangePos1 = RandomInt(0, geneSerialLength - 1);
+            int exchangePos2 = RandomInt(0, geneSerialLength - 1);
+            if (exchangePos1 > exchangePos2) {
+                int t = exchangePos1;
+                exchangePos1 = exchangePos2;
+                exchangePos2 = t;
+            }
+            // 选择两个不同的个体，进行基因重组
+            int individual1 = SelectIndividual(generationCount, totalFitness);
+            int individual2 = SelectIndividual(generationCount, totalFitness);
+            while (individual1 == individual2) {
+                individual1 = SelectIndividual(generationCount, totalFitness);
+//                individual2= SelectIndividual(generationCount,totalFitness);
+            }
+            for (int j = 0; j < geneSerialLength; j++) {
+                if (j >= exchangePos1 && j <= exchangePos2) {
+                    newPopulation[2 * i].geneSerial = ReplaceCharAt(newPopulation[2 * i].geneSerial, j,
+                            oldPopulation[generationCount][individual2].geneSerial.charAt(j));
+                    newPopulation[2 * i + 1].geneSerial = ReplaceCharAt(newPopulation[2 * i + 1].geneSerial, j,
+                            oldPopulation[generationCount][individual1].geneSerial.charAt(j));
+                } else {
+                    newPopulation[2 * i].geneSerial = ReplaceCharAt(newPopulation[2 * i].geneSerial, j,
+                            oldPopulation[generationCount][individual1].geneSerial.charAt(j));
+                    newPopulation[2 * i + 1].geneSerial = ReplaceCharAt(newPopulation[2 * i + 1].geneSerial, j,
+                            oldPopulation[generationCount][individual2].geneSerial.charAt(j));
+                }
+            }
+            for (int j = 0; j < constantSCount; j++) {
+                newPopulation[2 * i].constants[j] = oldPopulation[generationCount][individual1].constants[j];
+                newPopulation[2 * i + 1].constants[j] = oldPopulation[generationCount][individual2].constants[j];
+            }
 
+            while (HadSameSerial(generationCount, newPopulation[2 * i].geneSerial)) {
+                // fixme 死循环？？？？
+//                System.out.println("before"+newPopulation[2*i].geneSerial);
+                System.out.println(individual1+"+"+individual2);
+                newPopulation[2 * i].geneSerial = Mutation(newPopulation[2 * i].geneSerial);
+//                System.out.println("after"+newPopulation[2*i].geneSerial);
+
+            }
+            while (HadSameSerial(generationCount, newPopulation[2 * i + 1].geneSerial)) {
+                newPopulation[2 * i + 1].geneSerial = Mutation(newPopulation[2 * i + 1].geneSerial);
+            }
+            newPopulation[2 * i].fitness = GetIndividualFitness(newPopulation[2 * i]);
+            newPopulation[2 * i + 1].fitness = GetIndividualFitness(newPopulation[2 * i + 1]);
+        }
+    }
+
+    private static String Mutation(String str) {
+//        System.out.println("in mutation before:"+individual.geneSerial);
+        int mutationPos;
+        double pm=0;
+        int h;
+        for(h=0;h<perGeneLength*numOfGenes;h++){
+            pm=RandomFloat(0,1);
+            if(pm<pMutation){
+                if(h%perGeneLength<headLength){
+                    mutationPos=RandomInt(0,functionset.length+dataCol-1);
+                }else{
+                    mutationPos=RandomInt(0,dataCol-1);
+                }
+                str=ReplaceCharAt(str,h,fandt.charAt(mutationPos));
+            }
+        }
+        for(;h<str.length();h++){
+            pm=RandomFloat(0,1);
+            if(pm<pMutation){
+                if(h%perGeneLength<headLength){
+                    mutationPos=RandomInt(dataCol,dataCol+ functionset.length+numOfGenes-1);
+                }else{
+                    mutationPos=RandomInt(functionset.length+dataCol,dataCol+ functionset.length+numOfGenes-1);
+                }
+                str=ReplaceCharAt(str,h,fandt.charAt(mutationPos));
+            }
+        }
+        return str;
+    }
+
+    private static boolean HadSameSerial(int generationCount, String str) {
+        boolean hadSame=false;
+        for(int j=0;j<groupSize;j++)
+        {
+            if(oldPopulation[generationCount][j].geneSerial.equals(str)){
+                System.out.println(oldPopulation[generationCount][j].geneSerial+"j="+j);
+                System.out.println(str);
+                hadSame=true;
+                break;
+            }
+        }
+        return hadSame;
+    }
+
+    private static String ReplaceCharAt(String str,int index,char c){
+//        System.out.println("str="+str+"index="+index);
+        StringBuilder stringBuilder=new StringBuilder(str);
+        stringBuilder.deleteCharAt(index);
+        stringBuilder.insert(index,c);
+        return stringBuilder.toString();
+    }
+
+    /**
+     * 根据轮盘赌算法，选择一个合适的个体
+     * @param generationCount
+     * @param total
+     * @return
+     */
+    private static int SelectIndividual(int generationCount, double total) {
+        double sum=0;
+        double pick=RandomFloat(0,1);
+        int i;
+        if(total!=0){
+            for(i=0;(sum<pick)&&(i<groupSize);i++)
+                sum+=oldPopulation[generationCount][i].fitness/total;
+        }else
+            i=RandomInt(1,groupSize);
+        return (i-1);
+    }
+
+    /**
+     * 按照fitness从大到小排序
+     * @param individuals
+     * @param size
+     * @return
+     */
+    private static List<Individual> DoSort(Individual[] individuals,int size){
+        List<Individual> list=new ArrayList<>();
+        for(int i=0;i<size;i++){
+            list.add(individuals[i]);
+        }
+        ComparatorIndIndividual comparator=new ComparatorIndIndividual();
+        Collections.sort(list,comparator);
+        return list;
+    }
+
+    /**
+     * 按适应度从打到小排列种群内的个体
+     */
+    private static void SortPopulation(int generationCount) {
+        List<Individual> listOld=DoSort(oldPopulation[generationCount],groupSize);
+        for(int i=0;i<groupSize;i++){
+            oldPopulation[generationCount][i]=listOld.get(i);
+        }
+        List<Individual> listNew=DoSort(newPopulation,nextGroupSize);
+        for(int i=0;i<nextGroupSize;i++){
+            newPopulation[i]=listNew.get(i);
+        }
+
+        int a=0;
+        int b=0;
+        for(int insertPos=0;insertPos<groupSize;insertPos++){
+            if(oldPopulation[generationCount][a].fitness>newPopulation[b].fitness){
+                oldPopulation[generationCount+1][insertPos]=oldPopulation[generationCount][a++];
+            }else{
+                oldPopulation[generationCount+1][insertPos]=newPopulation[b++];
+            }
+        }
     }
 
     /**
      * 每次演化完成后，显示一下当前结果
      */
-    public static void ShowResult(){
+    public static void ShowResult(int generationCount){
 
     }
 
     public static void main(String[] args) {
+
         String inFilename="D:\\JAVA_project\\GEP_DuplicateOfC++\\inputData\\3.txt";
         String outFilename="D:\\JAVA_project\\GEP_DuplicateOfC++\\inputData\\res.txt";
         ReadData(inFilename,outFilename);
 
         InitGEP();
-
+        System.out.println("init finish");
         for(int i=0;i<GEPNum;i++){
-            Generation();
-            ShowResult();
+            Generation(i);
+            SortPopulation(i);
+            ShowResult(i);
         }
         System.out.println("finish");
     }
+
+
 
     public static int RandomInt(int left,int right)
     {
