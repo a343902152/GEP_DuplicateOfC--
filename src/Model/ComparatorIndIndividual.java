@@ -10,6 +10,8 @@ public class ComparatorIndIndividual implements Comparator {
     public int compare(Object o1, Object o2) {
         Individual individual1=(Individual)o1;
         Individual individual2=(Individual)o2;
-        return (int)(individual2.fitness-individual1.fitness);
+        Double a=(Double)individual1.fitness;
+        Double b=(Double)individual2.fitness;
+        return b.compareTo(a);
     }
 }
