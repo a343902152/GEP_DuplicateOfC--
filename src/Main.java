@@ -1,8 +1,8 @@
 import Model.BinaryTreeNode;
 import Model.ComparatorIndIndividual;
 import Model.Individual;
-import jdk.nashorn.internal.runtime.FunctionScope;
 
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -56,36 +56,117 @@ public class Main {
     public static char[] functionset={'+','-','*','/','@','~'}; // 加减乘除，'@'=sqrt，'~'=ln()
     public static String fandt;
 
-    public static void ReadData(String inFilename,String outFilename){
-        // 读取文件中的数据
-        GEPNum=100;
-        groupSize=1000;
-        nextGroupSize=(int)(groupSize*(0.6));
+    public static void ReadData(String inFilename){
+        try {
+            File file=new File(inFilename);
+            String encoding="GBK";
+            InputStreamReader inputStreamReader=new InputStreamReader(new FileInputStream(file),encoding);
+            BufferedReader bufferedReader=new BufferedReader(inputStreamReader);
 
-        numOfGenes=2;
-        headLength=6;
-        tailLength=headLength+1;
-        perGeneLength=headLength+tailLength;
-        geneSerialLength=perGeneLength*(numOfGenes+1);
+            GEPNum=(int) ReadParameterFromFile(bufferedReader);
+            groupSize=(int) ReadParameterFromFile(bufferedReader);
+            nextGroupSize=(int) ReadParameterFromFile(bufferedReader);
 
-        pRecombination=0.4;
-        pMutation=0.25;
+            numOfGenes=(int) ReadParameterFromFile(bufferedReader);
+            headLength=(int) ReadParameterFromFile(bufferedReader);
+            tailLength=headLength+1;
+            perGeneLength=headLength+tailLength;
+            geneSerialLength=perGeneLength*(numOfGenes+1);
 
-        lowerBound=-5;
-        upperBound=5;
+            lowerBound= ReadParameterFromFile(bufferedReader);
+            upperBound= ReadParameterFromFile(bufferedReader);
 
-        dataRow=6;
-        dataCol=3;
+            pRecombination= ReadParameterFromFile(bufferedReader);
+            pMutation= ReadParameterFromFile(bufferedReader);
 
-        trainingset=new double[dataRow][dataCol];
-        trainingset[0][0]=1;trainingset[0][1]=1;trainingset[0][2]=5;
-        trainingset[1][0]=1;trainingset[1][1]=2;trainingset[1][2]=8;
-        trainingset[2][0]=0.5;trainingset[2][1]=-0.5;trainingset[2][2]=3.5;
-        trainingset[3][0]=0.88 ;trainingset[3][1]=7.31 ;trainingset[3][2]=57.2105;
-        trainingset[4][0]=10;trainingset[4][1]=15;trainingset[4][2]=328;
-        trainingset[5][0]=-7;trainingset[5][1]=-9;trainingset[5][2]=133;
+            dataRow=(int) ReadParameterFromFile(bufferedReader);
+            dataCol=(int) ReadParameterFromFile(bufferedReader);
 
+            trainingset=new double[dataRow][dataCol];
+            for(int i=0;i<dataRow;i++){
+                double[] data=ReadTrainingsetFromFile(bufferedReader);
+                for(int j=0;j<dataCol;j++){
+                    if (data != null) {
+                        trainingset[i][j]=data[j];
+                    }
+                }
+            }
+            bufferedReader.close();
+            inputStreamReader.close();
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+        // 手动写入数据
+//        GEPNum=100;
+//        groupSize=1000;
+//        nextGroupSize=(int)(groupSize*(0.6));
+//
+//        numOfGenes=2;
+//        headLength=6;
+//        tailLength=headLength+1;
+//        perGeneLength=headLength+tailLength;
+//        geneSerialLength=perGeneLength*(numOfGenes+1);
+//
+//        pRecombination=0.4;
+//        pMutation=0.25;
+//
+//        lowerBound=-5;
+//        upperBound=5;
+//
+//        dataRow=6;
+//        dataCol=3;
+//
+//        trainingset=new double[dataRow][dataCol];
+//        trainingset[0][0]=1;    trainingset[0][1]=1;    trainingset[0][2]=5;
+//        trainingset[1][0]=1;    trainingset[1][1]=2;    trainingset[1][2]=8;
+//        trainingset[2][0]=0.5;  trainingset[2][1]=-0.5; trainingset[2][2]=3.5;
+//        trainingset[3][0]=0.88; trainingset[3][1]=7.31; trainingset[3][2]=57.2105;
+//        trainingset[4][0]=10;   trainingset[4][1]=15;   trainingset[4][2]=328;
+//        trainingset[5][0]=-7;   trainingset[5][1]=-9;   trainingset[5][2]=133;
     }
+
+    /**
+     * 读取种群代数、大小等参数
+     * @param bufferedReader
+     * @return
+     */
+    private static double ReadParameterFromFile(BufferedReader bufferedReader) {
+        try {
+            String str="";
+            while((str=bufferedReader.readLine()).isEmpty()){
+                // 空
+            }
+            return Double.valueOf(str);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    private static double[] ReadTrainingsetFromFile(BufferedReader bufferedReader){
+        try {
+            String str="";
+            while((str=bufferedReader.readLine()).isEmpty()){
+                // 空
+            }
+            String[] arr=str.split(" ");
+            double[] ans=new double[arr.length];
+            for(int i=0;i<arr.length;i++){
+                ans[i]=Double.valueOf(arr[i]);
+            }
+            return ans;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
 
     public static void InitGEP(){
         bestFit=new Individual(constantSCount);
@@ -501,31 +582,50 @@ public class Main {
     /**
      * 每次演化完成后，显示一下当前结果
      */
-    public static void ShowResult(int generationCount){
-        System.out.println("bestfit: "+bestFit.fitness);
+    public static void ShowResult(PrintWriter printWriter,Individual bestFit){
+        try{
+            printWriter.println(bestFit.fitness);
+            for(int i=0;i<numOfGenes+1;i++){
+                String str=bestFit.geneSerial.substring(i*perGeneLength,(i+1)*perGeneLength);
+                printWriter.print(str + "\t");
+            }
+            printWriter.println(" ");
+            for(int i=0;i<constantSCount;i++){
+                printWriter.println("i=" + i + ":" + bestFit.constants[i]);
+            }
+            printWriter.println(" ");
+            printWriter.flush();
+        }catch (Exception e){
+            e.printStackTrace();
+        }
     }
 
     public static void main(String[] args) {
-
         String inFilename="D:\\JAVA_project\\GEP_DuplicateOfC++\\inputData\\3.txt";
         String outFilename="D:\\JAVA_project\\GEP_DuplicateOfC++\\inputData\\res.txt";
-        ReadData(inFilename,outFilename);
-        InitGEP();
+        ReadData(inFilename);
 
+        PrintWriter printWriter=null;
+        try {
+            printWriter=new PrintWriter(new File(outFilename));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        InitGEP();
         List<Individual> list=new ArrayList<>();
-        for(int cas=0;cas<40;cas++){
+        for(int cas=0;cas<10;cas++){
             System.out.println("Case "+cas+":");
             for(int i=0;i<GEPNum;i++){
                 Generation(i);
                 SortPopulation(i);
                 UpdateBestFit(i);
-//                ShowResult(i);
             }
-            list.add(oldPopulation[GEPNum-1][0]);
+            ShowResult(printWriter,bestFit);
             System.out.println(bestFit.fitness);
             System.out.println(bestFit.geneSerial);
         }
-
+        printWriter.close();
 //        for(int i=0;i<GEPNum;i++){
 //            System.out.println("generation i="+i);
 //            Generation(i);
